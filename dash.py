@@ -1,13 +1,3 @@
-"""
-Room Energy Audit Dashboard (proof of concept, synthetic data)
-
-Simple view first, technical details on request.
-Uses the project's own rules (anomaly threshold, actionability score, decision
-states, confidence routing, evidence bundle) and the existing CSV files.
-
-Run:  python3 -m streamlit run dash.py
-"""
-
 from pathlib import Path
 
 import pandas as pd
@@ -20,8 +10,7 @@ DEFAULT_THRESHOLD = 0.30
 
 st.set_page_config(page_title="Room Energy Audit", page_icon="⚡", layout="wide")
 
-# --------------------------------------------------------------- vocabulary
-# state code -> (plain name, emoji, colour)
+#vocabulary
 STATUS = {
     "NORMAL": ("Normal", "✅", "#2e7d32"),
     "UNUSUAL": ("Unusual", "🟡", "#f9a825"),
@@ -52,7 +41,7 @@ def status_text(code, tech=False):
     return f"{emoji} {name}" + (f" ({code})" if tech else "")
 
 
-# --------------------------------------------------------------- data + rules
+#data + rules
 @st.cache_data
 def read_csv(path):
     return pd.read_csv(path)
@@ -86,7 +75,7 @@ def normalise(raw):
         df["Equipment_Status"] = "Unknown"
     if "Data_Quality" not in df.columns:
         df["Data_Quality"] = "Good"
-    # Missing context (occupancy or schedule) means we cannot judge fairly -> treat as not good
+
     df["Quality_OK"] = df["Data_Quality"].astype(str).str.upper().eq("GOOD") \
         & df["Occupancy"].notna() & df["Scheduled"].notna()
     return df
@@ -167,7 +156,7 @@ def describe(r):
             f"{occ.capitalize()}, {sch}, equipment {r.Equipment_Status}.")
 
 
-# --------------------------------------------------------------- sidebar
+#sidebar
 st.sidebar.title("⚡ Room Energy Audit")
 available = {k: v for k, v in SAMPLES.items() if (BASE / v).exists()}
 source_kind = st.sidebar.radio("Data", ["Project sample data", "Upload my own CSV"])
@@ -212,7 +201,7 @@ if df.empty:
     st.warning("No usable readings in this data.")
     st.stop()
 
-# --------------------------------------------------------------- numbers
+#numbers
 step_h = df["Time"].diff().dt.total_seconds().median() / 3600 if len(df) > 1 else 1.0
 step_h = step_h if pd.notna(step_h) and step_h > 0 else 1.0
 used = df["Energy_kWh"].sum()
@@ -228,7 +217,7 @@ queue["_p"] = queue["Decision_State"].map(PRIORITY)
 queue = queue.sort_values(["_p", "Actionability_Score", "Residual_kW"], ascending=[True, False, False],
                           key=lambda s: s.abs() if s.name == "Residual_kW" else s)
 
-# --------------------------------------------------------------- header
+#header
 st.title(f"Room energy check: {room}")
 st.info(f"Demo using {data_label}. A flag means **worth reviewing**, not a confirmed fault.", icon="ℹ️")
 
@@ -236,7 +225,7 @@ tab_over, tab_power, tab_queue, tab_explain, tab_evidence, tab_about = st.tabs(
     ["🏠 Overview", "📈 Power & Energy", "📋 Review Queue", "🔍 Explain a Reading", "🧾 Evidence & Audit", "ℹ️ About"]
 )
 
-# ============================================================ OVERVIEW
+#OVERVIEW
 with tab_over:
     if n_check:
         times = ", ".join(queue[queue.Decision_State == "POTENTIALLY_ACTIONABLE"]["Label"].head(6))
@@ -275,7 +264,7 @@ with tab_over:
                       yaxis=dict(autorange="reversed"))
     st.plotly_chart(fig)
 
-# ============================================================ POWER & ENERGY
+#POWER & ENERGY
 with tab_power:
     st.subheader("Actual vs expected power")
     st.caption("The grey band is the normal range. Coloured dots are readings the system wants you to notice.")
@@ -342,7 +331,7 @@ with tab_power:
         st.plotly_chart(rf)
         st.caption(f"Residual = actual minus expected. Readings beyond ±{threshold:.2f} kW are flagged as anomalies.")
 
-# ============================================================ REVIEW QUEUE
+#REVIEW QUEUE
 with tab_queue:
     st.subheader("Readings to look at")
     only_check = st.checkbox("Only show 'Worth checking'", value=False)
@@ -371,7 +360,7 @@ with tab_queue:
             st.dataframe(table, hide_index=True)
         st.download_button("⬇️ Download review queue (CSV)", table.to_csv(index=False), "review_queue.csv", "text/csv")
 
-# ============================================================ EXPLAIN
+#EXPLAIN
 with tab_explain:
     st.subheader("Why did this reading get its status?")
     default = int(queue.index[0]) if len(queue) else 0
@@ -410,7 +399,7 @@ with tab_explain:
         st.write(f"**Evidence:** `{r.Evidence_Bundle}`")
         st.caption(f"{r.Measurement_ID} · {r.Baseline_ID} · {r.Rule_Version}")
 
-# ============================================================ EVIDENCE & AUDIT
+#EVIDENCE & AUDIT
 with tab_evidence:
     st.subheader("Evidence log")
     st.caption("Every reading is stored with the facts behind its status so it can be checked later.")
@@ -452,7 +441,7 @@ with tab_evidence:
     st.caption("Confirmed actionable (Case D) needs independent evidence, such as a fault record. "
                "Power data alone can never confirm a fault, which is why the system only says 'worth checking'.")
 
-# ============================================================ ABOUT
+#ABOUT
 with tab_about:
     st.subheader("How it works")
     st.markdown(
